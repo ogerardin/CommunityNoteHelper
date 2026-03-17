@@ -49,12 +49,17 @@ After installation, access settings by:
 
 ### Settings
 
-- **Prompt Template**: Customize the prompt sent to the AI. Use `{tweetText}` and `{authorName}` as placeholders.
-- **AI Output**: Choose how to deliver the prompt:
-  - **Google AI Mode**: Opens Google Search with AI Mode enabled
+- **Prompt Template**: Customize the prompt sent to the AI. Use `{tweetText}` and `{author}` as placeholders.
+- **AI Provider**: Choose which AI to use:
+  - **Google AI Mode**: Opens Google AI Mode with the query
   - **ChatGPT**: Opens ChatGPT with the query
   - **Claude**: Opens Claude with the query
-  - **Copy to Clipboard**: Copies the prompt to clipboard for manual pasting
+  - **Mistral AI**: Opens Mistral (may require send button)
+  - **Perplexity**: Opens Perplexity with the query
+  - **Grok**: Opens Grok with the query
+  - **Copy to Clipboard**: Copies the prompt to your clipboard
+
+> **Note**: Some AI chats (Google AI Mode, ChatGPT, Claude) open with the query pre-filled - you'll need to click the send button to submit. Mistral automation handles this automatically. The "Copy to Clipboard" option works with any AI.
 
 ## Usage
 

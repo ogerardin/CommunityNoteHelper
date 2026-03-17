@@ -1,20 +1,17 @@
 // ==UserScript==
 // @name         Community Notes Helper
 // @namespace    http://tampermonkey.net/
-// @version      0.5.2
-// @description  AI-powered fact-check assistant for Twitter Community Notes
+// @version      0.6.8
+// @description  AI fact-check assistant for Twitter Community Notes
 // @author       Community
 // @match        https://twitter.com/*
 // @match        https://x.com/*
+// @match        https://chat.mistral.ai/*
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand
 // @grant        GM_xmlhttpRequest
 // @grant        GM_addStyle
-// @connect      api.openai.com
-// @connect      api.anthropic.com
-// @connect      generativelanguage.googleapis.com
-// @connect      localhost
 // @icon         https://abs.twimg.com/icons/apple-touch-icon-192x192.png
 // ==/UserScript==
 
@@ -23,7 +20,7 @@
 
     // ===== CONSTANTS =====
     const SCRIPT_NAME = 'CommunityNotesHelper';
-    const VERSION = '0.5.2';
+    const VERSION = '0.6.8';
 
     // Default settings
     const DEFAULT_SETTINGS = {
@@ -31,10 +28,10 @@
 Analyze the following tweet and provide a balanced, factual note that could help others understand the truth:
 
 Tweet: "{tweetText}"
-Author: {authorName}
+Author: {author}
 
 Provide a brief (200 character max), factual Community Note that explains any inaccuracies or adds context. Be neutral and factual.`,
-        aiOutputMode: 'googleAI'
+        aiProvider: 'googleAI'
     };
 
     // ===== STATE =====
@@ -79,8 +76,63 @@ Provide a brief (200 character max), factual Community Note that explains any in
     function init() {
         loadSettings().then(() => {
             log('Settings loaded:', settings);
-            observeTweets();
+            
+            // Check if we're on Mistral chat
+            if (window.location.hostname === 'chat.mistral.ai') {
+                handleMistralChat();
+            } else {
+                observeTweets();
+            }
         });
+    }
+    
+    function handleMistralChat() {
+        const checkAndSend = () => {
+            const prompt = GM_getValue('cnh_mistral_prompt');
+            if (!prompt) return;
+            
+            // Find the ProseMirror editor (Mistral uses a contenteditable div)
+            const editor = document.querySelector('.ProseMirror');
+            
+            if (!editor) {
+                console.log('[CNH] Waiting for chat input...');
+                return;
+            }
+            
+            // Set the content - try innerText first, then fallback to execCommand
+            if (editor.innerText !== prompt) {
+                editor.innerText = prompt;
+                editor.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                
+                // Fallback: try execCommand if innerText didn't work
+                if (editor.innerText !== prompt) {
+                    document.execCommand('insertText', false, prompt);
+                }
+            }
+            
+            // Send by pressing Enter
+            setTimeout(() => {
+                editor.dispatchEvent(new KeyboardEvent('keydown', {
+                    key: 'Enter',
+                    code: 'Enter',
+                    keyCode: 13,
+                    which: 13,
+                    bubbles: true,
+                    cancelable: true
+                }));
+                console.log('[CNH] Sent Enter key to Mistral');
+            }, 100);
+            
+            // Clear the stored prompt after a delay
+            setTimeout(() => {
+                GM_setValue('cnh_mistral_prompt', '');
+            }, 500);
+        };
+        
+        // Try immediately and then poll
+        checkAndSend();
+        setTimeout(checkAndSend, 1000);
+        setTimeout(checkAndSend, 3000);
     }
 
     // Register menu commands synchronously (required by Tampermonkey)
@@ -166,11 +218,37 @@ Provide a brief (200 character max), factual Community Note that explains any in
     }
 
     function extractAuthorName(tweetEl) {
-        const nameEl = tweetEl.querySelector('[data-testid="tweet"] a[role="link"] span') ||
-                      tweetEl.querySelector('.r-1habvwh a[role="link"] span') ||
-                      tweetEl.querySelector('a[role="link"] span') ||
-                      tweetEl.querySelector('[data-testid="User-Name"] span');
-        return nameEl?.textContent?.trim() || 'Unknown';
+        // Get display name
+        let nameEl = tweetEl.querySelector('[data-testid="User-Name"] a[role="link"] span') ||
+                     tweetEl.querySelector('[data-testid="User-Name"] span') ||
+                     tweetEl.querySelector('[data-testid="tweet"] a[role="link"] span');
+        
+        let displayName = nameEl?.textContent?.trim() || '';
+        
+        // Remove emojis from display name
+        displayName = displayName.replace(/[\u{1F300}-\u{1F9FF}]/gu, '');
+        displayName = displayName.replace(/\s+/g, ' ').trim();
+        
+        // Get handle (@username) - find element starting with @
+        let handle = '';
+        const spans = tweetEl.querySelectorAll('span');
+        for (const span of spans) {
+            const text = span.textContent?.trim() || '';
+            if (text.startsWith('@')) {
+                handle = text;
+                break;
+            }
+        }
+        
+        // Format as "name (@handle)"
+        if (displayName && handle) {
+            return `${displayName} (${handle})`;
+        } else if (handle) {
+            return handle;
+        } else if (displayName) {
+            return displayName;
+        }
+        return 'Unknown';
     }
 
     function generateTweetId(tweetEl) {
@@ -225,11 +303,11 @@ Provide a brief (200 character max), factual Community Note that explains any in
     }
 
     function handleAIOutput(prompt, data) {
-        const outputMode = getSetting('aiOutputMode');
+        const outputMode = getSetting('aiProvider');
         
         const fullPrompt = prompt
             .replace('{tweetText}', data.text)
-            .replace('{authorName}', data.author || 'Unknown');
+            .replace('{author}', data.author || 'Unknown');
         
         const encodedPrompt = encodeURIComponent(fullPrompt);
         
@@ -242,6 +320,16 @@ Provide a brief (200 character max), factual Community Note that explains any in
         } else if (outputMode === 'claude') {
             window.open(`https://claude.ai/new?q=${encodedPrompt}`, '_blank');
             log('Opened Claude');
+        } else if (outputMode === 'mistral') {
+            GM_setValue('cnh_mistral_prompt', fullPrompt);
+            window.open('https://chat.mistral.ai/', '_blank');
+            log('Opened Mistral');
+        } else if (outputMode === 'grok') {
+            window.open(`https://grok.com/?q=${encodedPrompt}`, '_blank');
+            log('Opened Grok');
+        } else if (outputMode === 'perplexity') {
+            window.open(`https://www.perplexity.ai/search?q=${encodedPrompt}`, '_blank');
+            log('Opened Perplexity');
         } else {
             navigator.clipboard.writeText(fullPrompt).then(() => {
                 showUserNotification('Prompt copied to clipboard! Paste it in your AI chat.');
@@ -274,16 +362,19 @@ Provide a brief (200 character max), factual Community Note that explains any in
                 <div class="cnh-form-group">
                     <label>Prompt Template</label>
                     <textarea id="cnh-prompt" rows="6">${escapeHtml(getSetting('promptTemplate'))}</textarea>
-                    <small>Use {tweetText} and {authorName} as placeholders</small>
+                    <small>Use {tweetText} and {author} as placeholders</small>
                 </div>
                 
                 <div class="cnh-form-group">
-                    <label>AI Output</label>
-                    <select id="cnh-ai-output-mode">
-                        <option value="clipboard" ${getSetting('aiOutputMode') === 'clipboard' ? 'selected' : ''}>Copy to Clipboard</option>
-                        <option value="googleAI" ${getSetting('aiOutputMode') === 'googleAI' ? 'selected' : ''}>Google AI Mode</option>
-                        <option value="chatgpt" ${getSetting('aiOutputMode') === 'chatgpt' ? 'selected' : ''}>ChatGPT</option>
-                        <option value="claude" ${getSetting('aiOutputMode') === 'claude' ? 'selected' : ''}>Claude</option>
+                    <label>AI Provider</label>
+                    <select id="cnh-ai-provider">
+                        <option value="clipboard" ${getSetting('aiProvider') === 'clipboard' ? 'selected' : ''}>Copy to Clipboard</option>
+                        <option value="googleAI" ${getSetting('aiProvider') === 'googleAI' ? 'selected' : ''}>Google AI Mode</option>
+                        <option value="chatgpt" ${getSetting('aiProvider') === 'chatgpt' ? 'selected' : ''}>ChatGPT</option>
+                        <option value="claude" ${getSetting('aiProvider') === 'claude' ? 'selected' : ''}>Claude</option>
+                        <option value="mistral" ${getSetting('aiProvider') === 'mistral' ? 'selected' : ''}>Mistral AI (scripted)</option>
+                        <option value="perplexity" ${getSetting('aiProvider') === 'perplexity' ? 'selected' : ''}>Perplexity</option>
+                        <option value="grok" ${getSetting('aiProvider') === 'grok' ? 'selected' : ''}>Grok</option>
                     </select>
                     <small>Choose how to deliver the AI query</small>
                 </div>
@@ -306,11 +397,11 @@ Provide a brief (200 character max), factual Community Note that explains any in
                 return;
             }
             settings.promptTemplate = promptTemplate;
-            settings.aiOutputMode = document.getElementById('cnh-ai-output-mode').value;
+            settings.aiProvider = document.getElementById('cnh-ai-provider').value;
             saveSettings();
             modal.remove();
             document.body.style.overflow = '';
-            log('Settings saved:', settings.aiOutputMode);
+            log('Settings saved:', settings.aiProvider);
         };
         modal.onclick = (e) => {
             if (e.target === modal) {

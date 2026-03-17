@@ -2,17 +2,19 @@
 
 ## Project Overview
 
-A **Tampermonkey userscript** that adds a fact-check button to tweets on Twitter/X. When clicked, it sends tweet content to an AI provider (OpenAI, Anthropic, Gemini, or Ollama) and displays the result inline or auto-fills the Community Notes dialog.
+A **Tampermonkey userscript** that adds a fact-check button to tweets on Twitter/X. When clicked, it opens your selected AI chat (Google AI Mode, ChatGPT, or Claude) with a pre-filled fact-check prompt.
 
 ## Project Structure
 
 ```
 CommunityNoteHelper/
 ├── community-notes-helper.user.js   # Main script (Tampermonkey userscript)
-├── docs/superpowers/
-│   ├── specs/                       # Design specifications
-│   └── plans/                       # Implementation plans
-└── .worktrees/                      # Git worktrees for feature development
+├── README.md                         # Installation & usage instructions
+├── LICENSE                           # CC0 public domain
+├── AGENTS.md                        # Guidelines for AI coding agents
+└── docs/superpowers/
+    ├── specs/                       # Design specifications
+    └── plans/                       # Implementation plans
 ```
 
 ## Build/Lint/Test Commands
@@ -52,7 +54,7 @@ npx eslint community-notes-helper.user.js
 |---------|------------|---------|
 | Functions | camelCase | `handleFactCheck()`, `loadSettings()` |
 | Constants | UPPER_SNAKE_CASE | `VERSION`, `CACHE_PREFIX` |
-| Settings keys | camelCase | `provider`, `apiKey` |
+| Settings keys | camelCase | `promptTemplate`, `aiOutputMode` |
 | CSS classes | kebab-case | `.cnh-factcheck-btn` |
 | Dataset attributes | camelCase | `cnhProcessed` |
 
@@ -105,35 +107,35 @@ Always include at file top (keep @version updated):
 // @grant        GM_setValue
 // @grant        GM_xmlhttpRequest
 // @grant        GM_addStyle
-// @connect      api.openai.com
-// @connect      api.anthropic.com
-// @connect      generativelanguage.googleapis.com
-// @connect      localhost
+// @grant        GM_registerMenuCommand
 // ==/UserScript==
 ```
 
 ### Version Bumping
 
+**ALWAYS bump the version on EVERY update.** This is critical for Tampermonkey to detect changes.
+
 When making changes:
 1. Update `@version` in metadata (line 4)
 2. Update `VERSION` constant (around line 26)
-3. Commit: `git commit -m "0.1.2 - description"`
+3. Commit: `git commit -m "feat: description"` (do NOT push - wait for review)
 
-### Error Handling
+### Git Workflow
 
-- Wrap async operations in try/catch
-- Log with `[SCRIPT_NAME]` prefix
-- Provide fallback values
+**Do NOT push automatically after each commit.** Wait for explicit approval or review before pushing.
 
-```javascript
-async function loadSettings() {
-    try {
-        // ... load logic
-    } catch (e) {
-        log('Failed to load settings:', e);
-        settings = { ...DEFAULT_SETTINGS };
-    }
-}
+```bash
+# Create feature branch with worktree
+git worktree add .worktrees/feature-name -b feature/feature-name
+
+# Work on feature...
+git commit -m "feat: add new feature"
+
+# When done:
+git worktree remove .worktrees/feature-name
+
+# Push only when explicitly approved
+git push
 ```
 
 ### DOM Manipulation
@@ -197,18 +199,21 @@ git worktree remove .worktrees/feature-name
 
 ## Common Tasks
 
-### Adding a New AI Provider
+### Adding a New AI Output Option
 
-Add to `PROVIDERS` object:
+To add a new AI output option (one that opens via URL):
 
+1. Add the case in `handleAIOutput()` function:
 ```javascript
-newprovider: {
-    name: 'New Provider',
-    apiUrl: 'https://api.example.com/v1/chat',
-    buildRequest: (prompt, data) => ({ /* ... */ }),
-    parseResponse: (response) => response.result || '',
-    getHeaders: (apiKey) => ({ 'Authorization': `Bearer ${apiKey}` })
+} else if (outputMode === 'newprovider') {
+    window.open(`https://ai.example.com/?q=${encodedPrompt}`, '_blank');
+    log('Opened New Provider');
 }
+```
+
+2. Add the option in `showSettingsModal()` dropdown:
+```html
+<option value="newprovider" ${getSetting('aiOutputMode') === 'newprovider' ? 'selected' : ''}>New Provider</option>
 ```
 
 ### Adding a New Setting
