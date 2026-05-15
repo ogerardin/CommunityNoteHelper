@@ -6,13 +6,12 @@ A Tampermonkey userscript that adds a fact-check button to tweets on Twitter/X. 
 
 - One-click fact-check button on tweets
 - Opens AI chat with pre-filled prompt asking for a balanced, factual Community Note
-- Supports multiple AI providers:
+- Supports multiple AI providers including:
   - Google AI Mode
   - ChatGPT
   - Claude
-  - Copy to Clipboard
+  - Copy to Clipboard (for manual copy-paste)
 - Customizable prompt template
-- Works on twitter.com and x.com
 
 ## Installation
 
@@ -41,9 +40,18 @@ Before using the script, ensure these settings are enabled:
    - Click the Tampermonkey icon → Settings → Security tab
    - Check **Allow clipboard access**
 
+## Usage
+
+1. Go to [twitter.com](https://twitter.com) or [x.com](https://x.com)
+2. Find a tweet you want to fact-check
+3. Click on the magnifying glass icon that appears on the left of the tweet's buttons:   
+ ![magnifying glass icon](screenshot.png) 
+ 
+4. Your selected AI chat opens with a fact-check prompt ready
+
 ## Configuration
 
-After installation, access settings by:
+After installation, access settings as follows:
 1. Click the Tampermonkey icon
 2. Select "Community Notes Helper - Settings"
 
@@ -60,13 +68,6 @@ After installation, access settings by:
   - **Copy to Clipboard**: Copies the prompt to your clipboard
 
 > **Note**: Some AI chats (Google AI Mode, ChatGPT, Claude) open with the query pre-filled - you'll need to click the send button to submit. Mistral automation handles this automatically. The "Copy to Clipboard" option works with any AI.
-
-## Usage
-
-1. Go to [twitter.com](https://twitter.com) or [x.com](https://x.com)
-2. Find a tweet you want to fact-check
-3. Click the magnifying glass icon that appears in the tweet's action bar
-4. Your selected AI chat opens with a fact-check prompt ready
 
 ## License
 
